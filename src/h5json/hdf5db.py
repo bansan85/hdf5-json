@@ -873,7 +873,12 @@ class Hdf5db:
 
     def getShapeItemByAttrObj(self, obj):
         item = {}
-        if obj.shape is None or obj.get_storage_size() == 0:
+        try:
+            storage_size = obj.get_storage_size()
+        except RuntimeError:
+            # Some h5py/HDF5 versions raise instead of returning 0 here.
+            storage_size = 0
+        if obj.shape is None or storage_size == 0:
             # If storage size is 0, assume this is a null space obj
             # See: h5py issue https://github.com/h5py/h5py/issues/279
             item["class"] = "H5S_NULL"
