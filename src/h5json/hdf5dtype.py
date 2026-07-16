@@ -417,7 +417,10 @@ def createBaseDataType(typeItem):
             raise TypeError("'dims' not supported for vlen types")
         if "base" not in typeItem:
             raise KeyError("'base' not provided")
-        baseType = createBaseDataType(typeItem["base"])
+        # use createDataType (not createBaseDataType) since the vlen base
+        # may itself be a compound type (vlen-of-compound), which
+        # createBaseDataType does not know how to build.
+        baseType = createDataType(typeItem["base"])
         dtRet = special_dtype(vlen=np.dtype(baseType))
     elif typeClass == "H5T_OPAQUE":
         if "dims" in typeItem:
