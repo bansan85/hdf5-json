@@ -2137,16 +2137,37 @@ class Hdf5db:
 
         return region_ref
 
-    def toTuple(self, rank, data):
+    def toTuple(self, rank, data, dtype=None):
         """
         Convert a list to a tuple, recursively.
         Example. [[1,2],[3,4]] -> ((1,2),(3,4))
+
+        Once rank reaches 0 and a numpy dtype is supplied, dtype is used
+        to guide the conversion of a single compound element instead of
+        blindly tuple-ifying every nested list: fields are matched up by
+        name, and non-string vlen fields are turned into actual ndarrays.
+        h5py's low-level writer accesses .dtype directly on vlen data
+        nested inside a compound type, so leaving it as a list/tuple
+        raises "AttributeError: 'list'/'tuple' object has no attribute
+        'dtype'" when the array is written.
         """
+        if rank > 0:
+            return list(self.toTuple(rank - 1, x, dtype) for x in data)
+
+        if dtype is not None:
+            if dtype.names:
+                return tuple(
+                    self.toTuple(0, value, dtype[name])
+                    for value, name in zip(data, dtype.names)
+                )
+            vlen_base = h5py.check_dtype(vlen=dtype)
+            if vlen_base is not None and vlen_base not in (str, bytes):
+                return np.array(
+                    [self.toTuple(0, x, vlen_base) for x in data], dtype=vlen_base
+                )
+
         if isinstance(data, (list, tuple)):
-            if rank > 0:
-                return list(self.toTuple(rank - 1, x) for x in data)
-            else:
-                return tuple(self.toTuple(rank - 1, x) for x in data)
+            return tuple(self.toTuple(rank - 1, x, dtype) for x in data)
         else:
             return data
 
@@ -2549,7 +2570,7 @@ class Hdf5db:
         # each element must be a tuple, but the JSON decoder
         # gives us a list instead.
         if format != "binary" and dset.dtype.names and isinstance(data, (list, tuple)):
-            data = self.toTuple(rank, data)
+            data = self.toTuple(rank, data, dset.dtype)
             # for i in range(len(data)):
             #    converted_data.append(self.toTuple(data[i]))
             # data = converted_data
@@ -2853,7 +2874,7 @@ class Hdf5db:
             ndscalar = np.zeros((), dtype=dt)
             for i in range(len(fillvalue)):
                 field = dt.names[i]
-                ndscalar[field] = self.toTuple(0, fillvalue[i])
+                ndscalar[field] = self.toTuple(0, fillvalue[i], dt[field])
             fillvalue = ndscalar
 
         if fillvalue:
