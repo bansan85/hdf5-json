@@ -2554,11 +2554,11 @@ class Hdf5db:
                 raise IOError(errno.EINVAL, msg)
             np_shape.append(s.stop - s.start)
 
+            # count == 0 is a legitimate, common case (e.g. an empty
+            # waveform/parameters array) -- it must not be rejected here,
+            # since s.step > 0 and s.stop >= s.start are already
+            # guaranteed above, count can never be negative.
             count = (s.stop - s.start) // s.step
-            if count <= 0:
-                msg = "invalid slice specification"
-                self.log.info(msg)
-                raise IOError(errno.EINVAL, msg)
 
             npoints *= count
 
